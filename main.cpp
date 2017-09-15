@@ -16,27 +16,20 @@ using namespace std;
  * Changes the I/O scheduler of the system.
  * @param io_scheduler The name of the scheduler.
  */
-void change_io_scheduler(const std::string &io_scheduler);
+void change_io_scheduler(const string &io_scheduler);
 
 void run_test(const vector<string> &schedulers, const size_t &nr_processes, void (*test)());
 
 void test_1();
-void test_2();
 
 
 
 int main(int argc, char *argv[]) {
-    test_1();
-    if (!access(SCHED_FILE, R_OK)) {
-        std::cerr << "Cannot change I/O scheduler. Permission denied.\n";
-        std::cerr << "Exiting...\n";
-        exit(1);
-    }
+    printf("%-10s | %-4s | %-10s \n", "scheduler", "proc", "time");
 
     vector<string> schedulers = {SCHED_NOOP, SCHED_DEADLINE, SCHED_CFQ};
 
-    run_test(schedulers, 5, &test_1);
-
+    run_test(schedulers, 20, &test_1);
 
     return 0;
 }
@@ -47,15 +40,15 @@ void change_io_scheduler(const string &io_scheduler) {
 }
 
 void run_test(const vector<string> &schedulers, const size_t &nr_processes, void (*test)()) {
-    auto children = vector<pid_t>();
 
     for (auto &scheduler : schedulers) {
-        cout << "Starting test. " << " Scheduler: ";
-        cout << scheduler << ". Processes:  " << nr_processes << ".\n";
+        auto children = vector<pid_t>();
         change_io_scheduler(scheduler);
 
+        clock_t begin = clock();
+
         for (size_t i = 0; i < nr_processes; i++) {
-            children[i] = fork();
+            children.push_back(fork());
 
             if (children[i] == 0) {
                 test();
@@ -63,7 +56,7 @@ void run_test(const vector<string> &schedulers, const size_t &nr_processes, void
             } else if (children[i] > 0) {
 
             } else {
-                std::cerr << "fork() failed.\n Exiting...\n";
+                cerr << "fork() failed.\n Exiting...\n";
                 exit(-1);
             }
         }
@@ -71,6 +64,10 @@ void run_test(const vector<string> &schedulers, const size_t &nr_processes, void
         for (size_t i = 0; i < nr_processes; i++) {
             waitpid(children[i], nullptr, 0);
         }
+
+        clock_t end = clock();
+        double elapsed = double(end - begin) / CLOCKS_PER_SEC;
+        printf("%-10s | %4ld | %-10f \n", scheduler.c_str(), nr_processes, elapsed);
     }
 }
 
@@ -80,10 +77,9 @@ void test_1() {
 
     char output[100];
 
-    if(file.is_open()) {
+    if (file.is_open()) {
         while (!file.eof()) {
             file >> output;
-            cout << output;
         }
     }
     file.close();
