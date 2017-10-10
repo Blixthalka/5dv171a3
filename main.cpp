@@ -4,6 +4,7 @@
 #include <wait.h>
 #include <vector>
 #include <fstream>
+#include <chrono>
 
 using namespace std;
 
@@ -25,11 +26,13 @@ void test_1();
 
 
 int main(int argc, char *argv[]) {
-    printf("%-10s | %-4s | %-10s \n", "scheduler", "proc", "time");
+    printf("%s, %s, %s\n", "scheduler", "proc", "time");
 
     vector<string> schedulers = {SCHED_NOOP, SCHED_DEADLINE, SCHED_CFQ};
 
-    run_test(schedulers, 20, &test_1);
+    for(int i = 0; i < 1; i++) {
+        run_test(schedulers, 5, &test_1);
+    }
 
     return 0;
 }
@@ -45,7 +48,7 @@ void run_test(const vector<string> &schedulers, const size_t &nr_processes, void
         auto children = vector<pid_t>();
         change_io_scheduler(scheduler);
 
-        clock_t begin = clock();
+        auto start = std::chrono::system_clock::now();
 
         for (size_t i = 0; i < nr_processes; i++) {
             children.push_back(fork());
@@ -65,18 +68,21 @@ void run_test(const vector<string> &schedulers, const size_t &nr_processes, void
             waitpid(children[i], nullptr, 0);
         }
 
-        clock_t end = clock();
-        double elapsed = double(end - begin) / CLOCKS_PER_SEC;
-        printf("%-10s | %4ld | %-10f \n", scheduler.c_str(), nr_processes, elapsed);
+        auto end = std::chrono::system_clock::now();
+
+
+        std::chrono::duration<double> elapsed = end - start;
+        printf("%s, %ld, %f\n", scheduler.c_str(), nr_processes, elapsed.count());
     }
 }
 
 void test_1() {
     ifstream file;
-    file.open("main.cpp");
+    file.open("file", ios::in);
 
-    char output[100];
-
+    std::cout << "lol" << std::endl;
+    char output[1000];
+    
     if (file.is_open()) {
         while (!file.eof()) {
             file >> output;
