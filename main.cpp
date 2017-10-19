@@ -8,15 +8,10 @@
 
 using namespace std;
 
-#define ITERATIONS 10 // the number of times to run each test
 #define SCHED_FILE      "/sys/block/sda/queue/scheduler"
 #define SCHED_DEADLINE  "deadline"
 #define SCHED_NOOP      "noop"
 #define SCHED_CFQ       "cfq"
-
-
-
-
 
 
 /**
@@ -35,28 +30,22 @@ void change_io_scheduler(const string &io_scheduler);
 void run_test(const vector<string> &schedulers, const size_t &processes, void (*test)(), const size_t &iterations);
 
 /**
- * Test 1. Reads a file that is 1 GB big.
+ * Test 1. Reads a file and writes the result to an own file.
  */
-
-
 void test_1();
-void test_1_init(int processes);
-void test_1_cleanup(int processes);
-
-
-#define RUN_TEST(test, schedulers, processes)   test ## _init(processes);                              \
-                                                run_test(schedulers, processes, test, ITERATIONS);     \
-                                                test ## _cleanup(processes);
-
+void test_1_init();
+void test_1_cleanup();
 
 int main(int argc, char *argv[]) {
+    std::cout << "scheduler, proc, time" << std::endl;
     vector<string> schedulers = {SCHED_NOOP, SCHED_DEADLINE, SCHED_CFQ};
-    printf("scheduler, proc, time\n");
 
-
-    RUN_TEST(test_1, schedulers, 5)
-    RUN_TEST(test_1, schedulers, 10)
-    RUN_TEST(test_1, schedulers, 20)
+    for(size_t i = 1; i < 100; i += 5) {
+        std::cerr << "Starting test with: " << i  << " processes." << std::endl;
+        test_1_init();
+        run_test(schedulers, i, test_1, 10);
+        test_1_cleanup();
+    }
 
     return 0;
 }
@@ -74,15 +63,15 @@ void run_test(const vector<string> &schedulers, const size_t &processes, void (*
         change_io_scheduler(scheduler);
 
         for (size_t j = 0; j < iterations; j++) {
-            auto children = vector<pid_t>();
+            auto children = vector<pid_t>(processes);
             auto start = std::chrono::system_clock::now();
 
             for (size_t i = 0; i < processes; i++) {
-                children.push_back(fork());
+                children[i] = fork();
 
                 if (children[i] == 0) {
                     // this is the child, run test and exit
-                    test();
+                   test();
                     exit(0);
                 } else if (children[i] > 0) {
 
@@ -100,29 +89,22 @@ void run_test(const vector<string> &schedulers, const size_t &processes, void (*
             std::chrono::duration<double> elapsed = end - start;
             time_count += elapsed.count();
         }
-        printf("%s, %ld, %f\n", scheduler.c_str(), processes, time_count);
+        std::cout << scheduler << ", " << processes << ", " << time_count / iterations << std::endl;
     }
+
 }
 
-void test_1_init(int processes) {
-   // std::cout << "init" << std::endl;
+
+void test_1_init() {
+    system("fallocate -l 1G test_1");
 }
 
-void test_1_cleanup(int processes) {
-    //std::cout << "cleaning up" << std::endl;
-}
 
 void test_1() {
-    ifstream file;
-    file.open("file", ios::in);
+    system(("dd if=test_1  conv=fdatasync bs=2M count=30 of=test_1_out"  + std::to_string(getpid()) + " status=noxfer > /dev/null 2>&1").c_str());
+}
 
-
-    char output[100000];
-
-    if (file.is_open()) {
-        while (!file.eof()) {
-            file >> output;
-        }
-    }
-    file.close();
+void test_1_cleanup() {
+    system("rm test_1");
+    system("rm test_1_out*");
 }
